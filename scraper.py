@@ -1,5 +1,7 @@
 import re
 from urllib.parse import urlparse
+from bs4 import BeautifulSoup # to scrape the web page
+from urllib.parse import urldefrag # to separate the domain and fragment in url
 
 def scraper(url, resp):
     links = extract_next_links(url, resp)
@@ -15,16 +17,47 @@ def extract_next_links(url, resp):
     #         resp.raw_response.url: the url, again
     #         resp.raw_response.content: the content of the page!
     # Return a list with the hyperlinks (as strings) scrapped from resp.raw_response.content
-    return list()
+    list = []
+    visited = set()
+
+    visited.add(resp) # add the seed url first
+    
+    if resp.status != 200: # if the resp page is not valid 
+        print(resp.error) # checking the error if resp page is invalid
+        return list()
+    
+    # if the page is valid
+    page_content = BeautifulSoup(resp.raw_response.content, "lxml")
+    
+    # extract all links in the page
+    for link in page_content.find_all('a', href=True):
+        
+        cur_link = link.get('href') 
+        
+        # if the link on the page is valid, add it to the list
+        if is_valid(cur_link) and cur_link not in visited:
+            print(cur_link)
+            list.append(cur_link)
+            visited.add(cur_link)
+
+    print(len(visited)) # count of unique page
+    return list
 
 def is_valid(url):
     # Decide whether to crawl this url or not. 
     # If you decide to crawl it, return True; otherwise return False.
     # There are already some conditions that return False.
+
+    ALLOWED_DOMAINS = ("ics.uci.edu", "cs.uci.edu", "informatics.uci.edu", "stat.uci.edu")
     try:
+        url, frag = urldefrag(url) # defragment the fragment portion in url
         parsed = urlparse(url)
         if parsed.scheme not in set(["http", "https"]):
             return False
+
+        if not parsed.netloc.endswith(ALLOWED_DOMAINS): # only accepts tuple that's why i use tuple for allowed domain
+            return False
+
         return not re.match(
             r".*\.(css|js|bmp|gif|jpe?g|ico"
             + r"|png|tiff?|mid|mp2|mp3|mp4"
