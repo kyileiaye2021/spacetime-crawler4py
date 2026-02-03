@@ -2,12 +2,54 @@ import re
 from urllib.parse import urlparse
 from bs4 import BeautifulSoup # to scrape the web page
 from urllib.parse import urljoin,urldefrag # to separate the domain and fragment in url
+from collections import Counter 
 
+# Adding stopwords
+STOP_WORDS = set()
+try:
+    with open('stopwords.txt', 'r') as f:
+        for line in f:
+            STOP_WORDS.add(line.strip().lower())
+    
+except FileNotFoundError:
+    print("stopwords.txt not found")
+    
 def scraper(url, resp):
+   
+   # For text content on the page
+    if resp.status != 200 or not resp.raw_response:
+        return []
+        
+    # check the content type header
+    # we have to check if the page is html and not pdf, images, and other types
+    content_type = resp.raw_response.headers.get('Content-Type', '').lower()
+    
+    if "text/html" not in content_type:
+        return []
+    
+    try:
+         # Parse html to get plain text
+        soup = BeautifulSoup(resp.raw_response.content, 'lxml')
+        text_content = soup.get_text(separator=" ", strip=True)
+        
+        # Tokenize using simple Regex 
+        words = re.findall(r'[a-zA-Z0-9]+', text_content.lower())
+        
+        # Filter out stop words and single letters (like 'a', 'i')
+        filtered_words = [w for w in words if w not in STOP_WORDS and len(w) > 1]
+        
+        # save to stats.txt for the final report
+        # format - url | num of words on that url | text on that url
+        if len(filtered_words) > 0:
+            with open("stats.txt", "a", encoding="utf-8") as f:
+                words_string = " ".join(filtered_words)
+                f.write(f"{url}\t{len(filtered_words)}\t{words_string}\n")
+    except Exception as e:
+        print(f"Error processing text for {url}: {e}")
+    
+    # For links on the page
     links = extract_next_links(url, resp)
     links = [link for link in links if is_valid(link)]
-    # for link in links:
-    #     print(link)
     print(f"Found {len(links)} valid links on {url}")
     return links
 
