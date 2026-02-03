@@ -5,7 +5,13 @@ from utils.server_registration import get_cache_server
 from utils.config import Config
 from crawler import Crawler
 
+import multiprocessing
+import sys
 
+# This must be at the very top of the file
+if sys.platform == 'darwin': # Check if it's macOS
+    multiprocessing.set_start_method('fork', force=True)
+    
 def main(config_file, restart):
     cparser = ConfigParser()
     cparser.read(config_file)
