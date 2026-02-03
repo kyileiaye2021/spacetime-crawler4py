@@ -39,11 +39,15 @@ def scraper(url, resp):
         filtered_words = [w for w in words if w not in STOP_WORDS and len(w) > 1]
         
         # save to stats.txt for the final report
+        # we want to crawl all pages with high textual information content
+        if len(filtered_words) < 20:
+            return []
+        
         # format - url | num of words on that url | text on that url
-        if len(filtered_words) > 0:
-            with open("stats.txt", "a", encoding="utf-8") as f:
-                words_string = " ".join(filtered_words)
-                f.write(f"{url}\t{len(filtered_words)}\t{words_string}\n")
+        with open("stats.txt", "a", encoding="utf-8") as f:
+            words_string = " ".join(filtered_words)
+            f.write(f"{url}\t{len(filtered_words)}\t{words_string}\n")
+            
     except Exception as e:
         print(f"Error processing text for {url}: {e}")
     
