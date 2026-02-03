@@ -20,6 +20,11 @@ def scraper(url, resp):
     if resp.status != 200 or not resp.raw_response:
         return []
         
+    # size check: if file is huge, ignore the page
+    # general limit size for web pages is ~3MB
+    if len(resp.raw_response.content) > 3_000_000:
+        return []
+
     # check the content type header
     # we have to check if the page is html and not pdf, images, and other types
     content_type = resp.raw_response.headers.get('Content-Type', '').lower()
@@ -40,14 +45,14 @@ def scraper(url, resp):
         
         # save to stats.txt for the final report
         # we want to crawl all pages with high textual information content
-        if len(filtered_words) < 20:
-            return []
+        if len(filtered_words) >= 50:
         
-        # format - url | num of words on that url | text on that url
-        with open("stats.txt", "a", encoding="utf-8") as f:
-            words_string = " ".join(filtered_words)
-            f.write(f"{url}\t{len(filtered_words)}\t{words_string}\n")
-            
+            # format - url | num of words on that url | text on that url
+            with open("stats.txt", "a", encoding="utf-8") as f:
+                words_string = " ".join(filtered_words)
+                f.write(f"{url}\t{len(filtered_words)}\t{words_string}\n")
+
+        # if the words is < 50, we don't save the text content in our log. We just proceed to extract links.
     except Exception as e:
         print(f"Error processing text for {url}: {e}")
     
@@ -119,6 +124,11 @@ def is_valid(url):
             return False
 
         # Trap detection
+        # filter out apache indexes or duplicate pages that differ only by sorting parameters (the same page content but diffent url name)
+        # e.g. https://ics.uci.edu/~dechter/softwares/benchmarks/Mmap_Problem_Sets?C=D;O=D and https://ics.uci.edu/~dechter/softwares/benchmarks/Mmap_Problem_Sets?C=D;O=A
+        if parsed.query and "C=" in parsed.query and "O=" in parsed.query:
+            return False
+            
         # Block the UCI Machine Learning Repository explicitly
         if "archive.ics.uci.edu" in parsed.netloc:
             return False
@@ -132,6 +142,10 @@ def is_valid(url):
         
         # check the query contain page, month, and year
         if any(x in parsed.query.lower() for x in ["page=", "month=", "year="]):
+            return False
+
+        # if the URL is too long, can be a trap
+        if len(url) > 100:
             return False
 
         return not re.match(
