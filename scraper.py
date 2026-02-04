@@ -35,6 +35,11 @@ def scraper(url, resp):
     try:
          # Parse html to get plain text
         soup = BeautifulSoup(resp.raw_response.content, 'lxml')
+
+        # Remove non-visible / non-content elements (e.g javascript/css style texts)
+        for tag in soup(["script", "style", "noscript", "header", "footer", "nav", "meta", "link", "title", "input"]):
+            tag.decompose()
+
         text_content = soup.get_text(separator=" ", strip=True)
         
         # Tokenize using simple Regex 
