@@ -3,6 +3,7 @@ from urllib.parse import urlparse
 from bs4 import BeautifulSoup # to scrape the web page
 from urllib.parse import urljoin,urldefrag # to separate the domain and fragment in url
 from collections import Counter 
+from urllib.robotparser import RobotFileParser
 
 # Adding stopwords
 STOP_WORDS = set()
@@ -129,6 +130,12 @@ def is_valid(url):
             return False
 
         # Trap detection
+        # block DokuWiki dynamic URLs  (sometimes they are the same content as home page and do not have much info on the page)
+        # e.g. https://swiki.ics.uci.edu/doku.php/announce:announce-2024?do= and https://swiki.ics.uci.edu/doku.php/announce:announce-2024 are the same content although the urls are different
+        # also https://swiki.ics.uci.edu/doku.php/announce:announce-2024?do=recent don't have high quality rich info
+        if any(x in parsed.query.lower() for x in ["do=", "action", "rev=", "media=", "diff="]):
+            return False
+            
         # filter out apache indexes or duplicate pages that differ only by sorting parameters (the same page content but diffent url name)
         # e.g. https://ics.uci.edu/~dechter/softwares/benchmarks/Mmap_Problem_Sets?C=D;O=D and https://ics.uci.edu/~dechter/softwares/benchmarks/Mmap_Problem_Sets?C=D;O=A
         if parsed.query and "C=" in parsed.query and "O=" in parsed.query:
