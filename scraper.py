@@ -4,6 +4,7 @@ from bs4 import BeautifulSoup # to scrape the web page
 from urllib.parse import urljoin,urldefrag # to separate the domain and fragment in url
 from collections import Counter 
 from urllib.robotparser import RobotFileParser
+import configparser
 
 # Adding stopwords
 STOP_WORDS = set()
@@ -14,7 +15,38 @@ try:
     
 except FileNotFoundError:
     print("stopwords.txt not found")
-    
+
+config = configparser.ConfigParser()
+config.read("config.ini")   
+My_USER_AGENT = config["IDENTIFICATION"]["USERAGENT"] # to check in robots.txt
+ROBOTS_CACHE = {} # robots.txt file content will be stored in this dict | dict format: {url page: robots.txt content}
+def get_robots_parser(url): 
+    """
+    TO CHECK IF THE CURRENT URL IS ALLOWED TO CRAWL.
+    description: The parsed url is separated by hostname and
+                 the robots.txt content and the hostname is stored in ROBOTS_CACHE dict 
+                 if there exists robots.txt for the url.
+                 If the url has no Roborts.txt file, we assume that it's allowed to crawl.
+    Param: url name
+    Return: robots.txt content of the url page
+    """
+    parsed = urlparse(url)
+    print(f"link url: {parsed}")
+
+    host = parsed.netloc
+    print(f"host name: {host}")
+
+    if host not in ROBOTS_CACHE:
+        rp = RobotFileParser()
+        robots_url = f"{parsed.scheme}://{host}/robots.txt"
+        rp.set_url(robots_url) # set robot.txts file path for the url
+        try:
+            rp.read()
+            ROBOTS_CACHE[host] = rp
+        except Exception:
+            ROBOTS_CACHE[host] = None
+    return ROBOTS_CACHE[host]
+
 def scraper(url, resp):
    
    # For text content on the page
@@ -129,13 +161,20 @@ def is_valid(url):
         if not parsed.netloc.endswith(ALLOWED_DOMAINS): # only accepts tuple that's why i use tuple for allowed domain
             return False
 
-        # Trap detection
+        # CHECK PERMISSION TO CRAWL
+        rp = get_robots_parser(url)
+        if rp is not None:
+            if not rp.can_fetch(My_USER_AGENT, url):
+                print("Not allowed to crawl")
+                return False
+
+        # TRAP DETECTIONS
         # block DokuWiki dynamic URLs  (sometimes they are the same content as home page and do not have much info on the page)
         # e.g. https://swiki.ics.uci.edu/doku.php/announce:announce-2024?do= and https://swiki.ics.uci.edu/doku.php/announce:announce-2024 are the same content although the urls are different
         # also https://swiki.ics.uci.edu/doku.php/announce:announce-2024?do=recent don't have high quality rich info
         if any(x in parsed.query.lower() for x in ["do=", "action", "rev=", "media=", "diff="]):
             return False
-            
+
         # filter out apache indexes or duplicate pages that differ only by sorting parameters (the same page content but diffent url name)
         # e.g. https://ics.uci.edu/~dechter/softwares/benchmarks/Mmap_Problem_Sets?C=D;O=D and https://ics.uci.edu/~dechter/softwares/benchmarks/Mmap_Problem_Sets?C=D;O=A
         if parsed.query and "C=" in parsed.query and "O=" in parsed.query:
